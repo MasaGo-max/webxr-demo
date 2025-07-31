@@ -1,0 +1,122 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2487.7">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="ja"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta charset="UTF-8" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;title&gt;AR人物パネルPoC&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>body { margin: 0; overflow: hidden; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>canvas { display: block; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>#ui {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>position: absolute; top: 10px; left: 10px; z-index: 10;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>#captureBtn { font-size: 1.2em; }</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="ui"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button id="captureBtn"&gt;📸 人物をパネル化&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;video id="inputVideo" autoplay playsinline style="display:none;"&gt;&lt;/video&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;canvas id="canvas" width="640" height="480" style="display:none;"&gt;&lt;/canvas&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"&gt;&lt;/script&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const video = document.getElementById('inputVideo');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const canvas = document.getElementById('canvas');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const ctx = canvas.getContext('2d');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>let capturedImages = [];</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// Set up MediaPipe Selfie Segmentation</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const selfieSegmentation = new SelfieSegmentation.SelfieSegmentation({</p>
+<p class="p1"><span class="Apple-converted-space">      </span>locateFile: (file) =&gt; `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>selfieSegmentation.setOptions({ modelSelection: 1 });</p>
+<p class="p1"><span class="Apple-converted-space">    </span>selfieSegmentation.onResults(onSegmentationResult);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>let currentFrame = null;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>async function onSegmentationResult(results) {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const mask = results.segmentationMask;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const data = imageData.data;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const maskData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// apply mask</p>
+<p class="p1"><span class="Apple-converted-space">      </span>for (let i = 0; i &lt; data.length; i += 4) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const alpha = maskData[i] &gt; 200 ? 255 : 0;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>data[i + 3] = alpha;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>ctx.putImageData(imageData, 0, 0);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// capture image</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const img = new Image();</p>
+<p class="p1"><span class="Apple-converted-space">      </span>img.src = canvas.toDataURL();</p>
+<p class="p1"><span class="Apple-converted-space">      </span>capturedImages.push(img);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>addPanelToScene(img);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// Setup camera</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const cameraUtils = new Camera(video, {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>onFrame: async () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>await selfieSegmentation.send({ image: video });</p>
+<p class="p1"><span class="Apple-converted-space">      </span>},</p>
+<p class="p1"><span class="Apple-converted-space">      </span>width: 640,</p>
+<p class="p1"><span class="Apple-converted-space">      </span>height: 480,</p>
+<p class="p1"><span class="Apple-converted-space">    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>cameraUtils.start();</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// Capture button</p>
+<p class="p1"><span class="Apple-converted-space">    </span>document.getElementById('captureBtn').addEventListener('click', () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>selfieSegmentation.send({ image: video });</p>
+<p class="p1"><span class="Apple-converted-space">    </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// Three.js AR-like scene</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const scene = new THREE.Scene();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const renderer = new THREE.WebGLRenderer({ alpha: true });</p>
+<p class="p1"><span class="Apple-converted-space">    </span>renderer.setSize(window.innerWidth, window.innerHeight);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>document.body.appendChild(renderer.domElement);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>scene.add(light);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>camera.position.z = 5;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function addPanelToScene(image) {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const texture = new THREE.Texture(image);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>texture.needsUpdate = true;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const geometry = new THREE.PlaneGeometry(2, 3);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const mesh = new THREE.Mesh(geometry, material);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>mesh.position.set(Math.random() * 2 - 1, 0, -Math.random() * 3 - 1);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>scene.add(mesh);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function animate() {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>requestAnimationFrame(animate);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>renderer.render(scene, camera);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>animate();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
+</body>
+</html>
