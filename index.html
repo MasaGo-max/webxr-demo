@@ -1,40 +1,67 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>カメラ表示テスト</title>
+  <meta charset="UTF-8">
+  <title>背景除去テスト</title>
   <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      background: black;
-    }
-    video {
+    body { margin: 0; overflow: hidden; background: black; }
+    video, canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100vw;
       height: 100vh;
       object-fit: cover;
+      z-index: 0;
     }
+    canvas { z-index: 1; pointer-events: none; }
   </style>
 </head>
 <body>
-  <video id="camera" autoplay playsinline muted></video>
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
   <script>
-    const video = document.getElementById('camera');
-    video.setAttribute('autoplay', '');
-    video.setAttribute('playsinline', '');
-    video.setAttribute('muted', '');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
 
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        video.srcObject = stream;
-        video.play().catch(err => console.error("video.play() error:", err));
-      })
-      .catch(err => {
-        console.error("getUserMedia error:", err);
-        alert("カメラの使用がブロックされているか、デバイスが対応していません。");
-      });
+    // MediaPipe設定
+    const selfieSegmentation = new SelfieSegmentation.SelfieSegmentation({
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+    });
+    selfieSegmentation.setOptions({ modelSelection: 1 });
+    selfieSegmentation.onResults(results => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+      const mask = results.segmentationMask;
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'source-over';
+    });
+
+    // カメラ起動（背面カメラ指定！）
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: "environment" } }
+    }).then(stream => {
+      video.srcObject = stream;
+      video.play();
+
+      // MediaPipeへフレームを送信
+      const sendFrame = async () => {
+        await selfieSegmentation.send({ image: video });
+        requestAnimationFrame(sendFrame);
+      };
+      sendFrame();
+    }).catch(err => {
+      console.error("カメラ取得エラー:", err);
+      alert("カメラにアクセスできませんでした");
+    });
   </script>
 </body>
 </html>
