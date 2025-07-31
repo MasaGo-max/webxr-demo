@@ -1,131 +1,40 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>人物ARパネルPoC</title>
+  <title>カメラ表示テスト</title>
   <style>
     body, html {
       margin: 0;
       padding: 0;
-      overflow: hidden;
+      height: 100%;
       background: black;
-      height: 100%;
-      width: 100%;
     }
-    #inputVideo {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+    video {
+      width: 100vw;
+      height: 100vh;
       object-fit: cover;
-      z-index: 0;
-    }
-    #ui {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      background: rgba(0, 0, 0, 0.6);
-      padding: 10px;
-      border-radius: 8px;
-    }
-    #captureBtn {
-      font-size: 1.3em;
-      padding: 8px 14px;
-      background: white;
-      border: none;
-      border-radius: 6px;
-    }
-    canvas {
-      display: none;
     }
   </style>
 </head>
 <body>
-
-  <video id="inputVideo" autoplay playsinline muted></video>
-  <div id="ui">
-    <button id="captureBtn">📸 人物をパネル化</button>
-  </div>
-  <canvas id="canvas" width="640" height="480"></canvas>
-
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <video id="camera" autoplay playsinline muted></video>
 
   <script>
-    const video = document.getElementById('inputVideo');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('camera');
+    video.setAttribute('autoplay', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('muted', '');
 
-    const selfieSegmentation = new SelfieSegmentation.SelfieSegmentation({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
-    });
-    selfieSegmentation.setOptions({ modelSelection: 1 });
-    selfieSegmentation.onResults(onSegmentationResult);
-
-    const scene = new THREE.Scene();
-    const camera3D = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera3D.position.z = 5;
-    const renderer = new THREE.WebGLRenderer({ alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.domElement.style.position = "absolute";
-    renderer.domElement.style.top = 0;
-    renderer.domElement.style.left = 0;
-    renderer.domElement.style.zIndex = 1;
-    document.body.appendChild(renderer.domElement);
-
-    const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
-    scene.add(light);
-
-    animate();
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera3D);
-    }
-
-    function addPanelToScene(image) {
-      const texture = new THREE.Texture(image);
-      texture.needsUpdate = true;
-      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-      const geometry = new THREE.PlaneGeometry(2, 3);
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(Math.random() * 2 - 1, 0, -Math.random() * 2 - 2);
-      scene.add(mesh);
-    }
-
-    async function onSegmentationResult(results) {
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-      const mask = results.segmentationMask;
-      ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
-      const maskData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-
-      for (let i = 0; i < data.length; i += 4) {
-        data[i + 3] = (maskData[i] > 200) ? 255 : 0;
-      }
-      ctx.putImageData(imageData, 0, 0);
-
-      const img = new Image();
-      img.onload = () => addPanelToScene(img);
-      img.src = canvas.toDataURL();
-    }
-
-    const cameraUtils = new Camera(video, {
-      onFrame: async () => {
-        await selfieSegmentation.send({ image: video });
-      },
-      width: 640,
-      height: 480
-    });
-    cameraUtils.start();
-
-    document.getElementById('captureBtn').addEventListener('click', () => {
-      selfieSegmentation.send({ image: video });
-    });
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+        video.play().catch(err => console.error("video.play() error:", err));
+      })
+      .catch(err => {
+        console.error("getUserMedia error:", err);
+        alert("カメラの使用がブロックされているか、デバイスが対応していません。");
+      });
   </script>
 </body>
 </html>
