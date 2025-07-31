@@ -1,22 +1,25 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>AR人物パネルPoC</title>
+  <meta charset="UTF-8" />
+  <title>人物ARパネルPoC</title>
   <style>
     body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
     #ui {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 10;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 0.6);
       padding: 10px;
-      border-radius: 5px;
+      border-radius: 8px;
     }
     #captureBtn {
-      font-size: 1.2em;
+      font-size: 1.3em;
+      padding: 8px 14px;
+    }
+    video, canvas {
+      display: none;
     }
   </style>
 </head>
@@ -25,10 +28,9 @@
     <button id="captureBtn">📸 人物をパネル化</button>
   </div>
 
-  <video id="inputVideo" autoplay playsinline style="display:none;"></video>
-  <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+  <video id="inputVideo" autoplay playsinline></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
 
-  <!-- ライブラリ読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
@@ -39,15 +41,40 @@
     const ctx = canvas.getContext('2d');
     let capturedImages = [];
 
-    // MediaPipe Selfie Segmentation 初期化
+    // MediaPipe SelfieSegmentation セットアップ
     const selfieSegmentation = new SelfieSegmentation.SelfieSegmentation({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
     });
     selfieSegmentation.setOptions({ modelSelection: 1 });
     selfieSegmentation.onResults(onSegmentationResult);
 
-    let currentFrame = null;
+    // Three.jsシーン構築
+    const scene = new THREE.Scene();
+    const camera3D = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera3D.position.z = 5;
+    const renderer = new THREE.WebGLRenderer({ alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+    scene.add(light);
+    animate();
 
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera3D);
+    }
+
+    function addPanelToScene(image) {
+      const texture = new THREE.Texture(image);
+      texture.needsUpdate = true;
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+      const geometry = new THREE.PlaneGeometry(2, 3);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(Math.random() * 2 - 1, 0, -Math.random() * 2 - 2); // ランダム配置
+      scene.add(mesh);
+    }
+
+    // Segmentation 結果処理
     async function onSegmentationResult(results) {
       ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
       const mask = results.segmentationMask;
@@ -56,57 +83,27 @@
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
 
-      // 背景除去マスク適用
       for (let i = 0; i < data.length; i += 4) {
-        const alpha = maskData[i] > 200 ? 255 : 0;
-        data[i + 3] = alpha;
+        data[i + 3] = (maskData[i] > 200) ? 255 : 0;
       }
       ctx.putImageData(imageData, 0, 0);
 
-      // 画像としてキャプチャ → パネル化
       const img = new Image();
+      img.onload = () => addPanelToScene(img);
       img.src = canvas.toDataURL();
-      capturedImages.push(img);
-      addPanelToScene(img);
     }
 
-    // カメラ初期化
+    // カメラ起動
     const cameraUtils = new Camera(video, {
       onFrame: async () => {
         await selfieSegmentation.send({ image: video });
       },
       width: 640,
-      height: 480,
+      height: 480
     });
     cameraUtils.start();
 
-    // Three.js シーン構築
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-    const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
-    scene.add(light);
-    camera.position.z = 5;
-
-    function addPanelToScene(image) {
-      const texture = new THREE.Texture(image);
-      texture.needsUpdate = true;
-      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-      const geometry = new THREE.PlaneGeometry(2, 3);
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(Math.random() * 2 - 1, 0, -Math.random() * 3 - 1);
-      scene.add(mesh);
-    }
-
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    // ボタン処理
+    // ボタンイベント
     document.getElementById('captureBtn').addEventListener('click', () => {
       selfieSegmentation.send({ image: video });
     });
