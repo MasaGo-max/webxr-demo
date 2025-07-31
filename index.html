@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -50,7 +51,6 @@
   </div>
   <canvas id="canvas" width="640" height="480"></canvas>
 
-  <!-- ライブラリ -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
@@ -60,14 +60,12 @@
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    // MediaPipeセットアップ
     const selfieSegmentation = new SelfieSegmentation.SelfieSegmentation({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
     });
     selfieSegmentation.setOptions({ modelSelection: 1 });
     selfieSegmentation.onResults(onSegmentationResult);
 
-    // Three.jsシーン構築
     const scene = new THREE.Scene();
     const camera3D = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera3D.position.z = 5;
@@ -88,7 +86,6 @@
       renderer.render(scene, camera3D);
     }
 
-    // パネル追加
     function addPanelToScene(image) {
       const texture = new THREE.Texture(image);
       texture.needsUpdate = true;
@@ -99,7 +96,6 @@
       scene.add(mesh);
     }
 
-    // 背景除去と画像作成
     async function onSegmentationResult(results) {
       ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
       const mask = results.segmentationMask;
@@ -118,7 +114,6 @@
       img.src = canvas.toDataURL();
     }
 
-    // カメラ起動
     const cameraUtils = new Camera(video, {
       onFrame: async () => {
         await selfieSegmentation.send({ image: video });
@@ -128,7 +123,6 @@
     });
     cameraUtils.start();
 
-    // 撮影ボタン押下
     document.getElementById('captureBtn').addEventListener('click', () => {
       selfieSegmentation.send({ image: video });
     });
